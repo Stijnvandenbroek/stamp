@@ -104,7 +104,7 @@ If you prefer to run without Docker:
 
 ```bash
 # Navigate to backend directory
-cd stamp_backend/
+cd backend/
 
 # Install uv
 pip install uv
@@ -124,7 +124,7 @@ uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 ```bash
 # Navigate to frontend directory
-cd stamp_frontend/
+cd frontend/
 
 # Install dependencies
 npm install

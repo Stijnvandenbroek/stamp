@@ -1,7 +1,7 @@
 services:
   backend:
     build:
-      context: ./stamp_backend
+      context: ./backend
     container_name: stamp-backend
     ports:
       - "8000:8000"
@@ -21,7 +21,7 @@ services:
 
   frontend:
     build:
-      context: ./stamp_frontend
+      context: ./frontend
     container_name: stamp-frontend
     ports:
       - "4000:4000"
