@@ -1,0 +1,4 @@
+question,answer
+"What is the capital of France?","[{""text"": ""Paris"", ""is_correct"": true}, {""text"": ""Berlin"", ""is_correct"": false}, {""text"": ""Madrid"", ""is_correct"": false}]"
+"What are the colors in the French flag?","[{""text"": ""Blue"", ""is_correct"": true}, {""text"": ""Red"", ""is_correct"": true}, {""text"": ""Green"", ""is_correct"": false}]"
+"Is this application good?","[{""text"": ""Yes"", ""is_correct"": true}]"

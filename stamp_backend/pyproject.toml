@@ -1,0 +1,26 @@
+[project]
+name = "stamp"
+version = "0.1.0"
+description = "A quiz application called Stamp that allows users to take quizzes."
+readme = "README.md"
+requires-python = ">=3.12"
+
+[dependency-groups]
+main = [
+    "fastapi >= 0.115.5",
+    "uvicorn >= 0.32.0",
+    "pandas >= 2.2.3",
+    "python-multipart >= 0.0.20",
+]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "httpx",
+]
+lint = [
+    "ruff",
+    "mypy"
+]
+
+[tool.uv]
+default-groups = ["main", "dev", "lint"]
