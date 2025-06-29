@@ -29,6 +29,7 @@ Question,Answer
 "What is the capital of France?","[{\"text\": \"Paris\", \"is_correct\": true}, {\"text\": \"Lyon\", \"is_correct\": false}]"
 "Name two primary colors (select all that apply)","[{\"text\": \"Red\", \"is_correct\": true}, {\"text\": \"Blue\", \"is_correct\": true}, {\"text\": \"Green\", \"is_correct\": false}]"
 ```
+`example.csv` in the root of the repository can be loaded in the app as an example.
 
 ## Running with Docker (Recommended)
 
