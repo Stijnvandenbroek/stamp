@@ -93,7 +93,7 @@ function App() {
 
     const handleRetryQuiz = async () => {
         try {
-            await axios.post('http://10.0.0.3:8000/reset-session/', {
+            await axios.post('http://backend:8000/reset-session/', {
                 session_id: sessionId,
             });
             setIsTransitioning(true);

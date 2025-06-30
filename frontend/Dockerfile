@@ -18,7 +18,5 @@ EXPOSE 4000
 ENV PORT=4000
 ENV WDS_SOCKET_PORT=0
 
-# Create an .env file at build time
-RUN echo "REACT_APP_API_URL=http://localhost:8000" > .env
-
+# Use environment variables from docker-compose at runtime
 CMD ["npm", "start"]

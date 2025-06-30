@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const Quiz = ({ sessionId, onGoHome, onRetry }) => {
+    const API_URL = process.env.REACT_APP_API_URL;
     const [questionData, setQuestionData] = useState(null);
     const [selectedAnswers, setSelectedAnswers] = useState([]);
     const [userAnswer, setUserAnswer] = useState('');
@@ -144,7 +145,7 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
 
     const fetchQuestion = async () => {
         try {
-            const response = await axios.get(`http://10.0.0.3:8000/next-question/?session_id=${sessionId}`);
+            const response = await axios.get(`${API_URL}/next-question/?session_id=${sessionId}`);
             console.log("Fetched Question Data:", response.data);
 
             if (response.data.message === 'Quiz complete!') {
@@ -170,7 +171,7 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
 
     const fetchQuizStats = async () => {
         try {
-            const response = await axios.get(`http://10.0.0.3:8000/quiz-stats/?session_id=${sessionId}`);
+            const response = await axios.get(`${API_URL}/quiz-stats/?session_id=${sessionId}`);
             setTotalQuestions(response.data.total_questions);
             setCorrectAnswersCount(response.data.correct_answers);
             setIncorrectAnswersCount(response.data.incorrect_answers);
@@ -217,7 +218,7 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
         }
     
         try {
-            const response = await axios.post('http://10.0.0.3:8000/submit-answer/', submissionData);
+            const response = await axios.post(`${API_URL}/submit-answer/`, submissionData);
             const result = response.data.result;
             setFeedback(result);
             setIsFeedbackVisible(true);
@@ -238,7 +239,7 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
     const moveQuestionToBottom = async () => {
         try {
             const questionIndex = questionData.question_index;
-            await axios.post(`http://10.0.0.3:8000/move-question-to-bottom/`, {
+            await axios.post(`${API_URL}/move-question-to-bottom/`, {
                 session_id: sessionId,
                 question_index: questionIndex,
             });
