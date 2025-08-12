@@ -76,7 +76,7 @@ def validate_session(session_id: str):
     return session
 
 # API endpoints
-@app.get("/")
+@app.get("/", include_in_schema=False)  # Hide from OpenAPI docs
 async def root():
     return {"status": "ok"}
 
@@ -226,4 +226,4 @@ async def reset_session(session_reset_request: SessionResetRequest):
 # Application startup
 if __name__ == "__main__":
     print("Starting server on 0.0.0.0:8000...")
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="debug")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
