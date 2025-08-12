@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 const Quiz = ({ sessionId, onGoHome, onRetry }) => {
@@ -27,7 +27,7 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
     const [timerId, setTimerId] = useState(null);
 
     // API functions
-    const fetchQuestion = async () => {
+    const fetchQuestion = useCallback(async () => {
         try {
             const response = await axios.get(`${API_URL}/next-question/?session_id=${sessionId}`);
             console.log("Fetched Question Data:", response.data);
@@ -51,9 +51,9 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
         } catch (error) {
             alert('Error fetching question: ' + (error.response?.data?.error || error.message));
         }
-    };
+    }, [API_URL, sessionId]);
 
-    const fetchQuizStats = async () => {
+    const fetchQuizStats = useCallback(async () => {
         try {
             const response = await axios.get(`${API_URL}/quiz-stats/?session_id=${sessionId}`);
             setTotalQuestions(response.data.total_questions);
@@ -62,9 +62,21 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
         } catch (error) {
             console.error('Error fetching quiz stats:', error);
         }
-    };
+    }, [API_URL, sessionId]);
 
-    const handleSubmit = async () => {
+    const moveQuestionToBottom = useCallback(async () => {
+        try {
+            const questionIndex = questionData.question_index;
+            await axios.post(`${API_URL}/move-question-to-bottom/`, {
+                session_id: sessionId,
+                question_index: questionIndex,
+            });
+        } catch (error) {
+            alert('Error moving question to bottom: ' + (error.response?.data?.error || error.message));
+        }
+    }, [API_URL, sessionId, questionData]);
+
+    const handleSubmit = useCallback(async () => {
         let submissionData;
         if (questionData.options.length > 1) {
             submissionData = {
@@ -95,19 +107,7 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
         } catch (error) {
             alert('Error submitting answer: ' + (error.response?.data?.error || error.message));
         }
-    };
-
-    const moveQuestionToBottom = async () => {
-        try {
-            const questionIndex = questionData.question_index;
-            await axios.post(`${API_URL}/move-question-to-bottom/`, {
-                session_id: sessionId,
-                question_index: questionIndex,
-            });
-        } catch (error) {
-            alert('Error moving question to bottom: ' + (error.response?.data?.error || error.message));
-        }
-    };
+    }, [API_URL, sessionId, selectedAnswers, userAnswer, questionData, fetchQuestion, fetchQuizStats, moveQuestionToBottom]);
 
     // Event handlers
     const handleMultipleAnswerChange = (answerText) => {
@@ -127,18 +127,18 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
         setUserAnswer(event.target.value);
     };
 
-    const handleContinueClick = () => {
+    const handleContinueClick = useCallback(() => {
         setIsFeedbackVisible(false);
         setFeedback('');
         fetchQuestion();
-    };
+    }, [fetchQuestion]);
 
-    const handleKeyPress = (event) => {
+    const handleKeyPress = useCallback((event) => {
         if (event.key === 'Enter') {
             if (isFeedbackVisible) {
                 handleContinueClick();
             } else {
-                const canSubmit = questionData.options.length > 1 
+                const canSubmit = questionData?.options?.length > 1 
                     ? selectedAnswers.length > 0 
                     : userAnswer.trim() !== '';
                 
@@ -147,7 +147,7 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
                 }
             }
         }
-    };
+    }, [isFeedbackVisible, selectedAnswers, userAnswer, questionData, handleContinueClick, handleSubmit]);
 
     // Utility functions
     const formatTime = (totalSeconds) => {
@@ -163,7 +163,7 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
         return () => {
             document.removeEventListener('keypress', handleKeyPress);
         };
-    }, [isFeedbackVisible, selectedAnswers, userAnswer, questionData]);
+    }, [handleKeyPress]);
 
     useEffect(() => {
         fetchQuestion();
@@ -174,7 +174,7 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
         return () => {
             clearInterval(id);
         };
-    }, [sessionId]);
+    }, [sessionId, fetchQuestion, fetchQuizStats]);
 
     useEffect(() => {
         if (quizCompleted) {
