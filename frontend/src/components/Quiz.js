@@ -3,20 +3,184 @@ import axios from 'axios';
 
 const Quiz = ({ sessionId, onGoHome, onRetry }) => {
     const API_URL = process.env.REACT_APP_API_URL;
+    
+    // Quiz state
     const [questionData, setQuestionData] = useState(null);
-    const [selectedAnswers, setSelectedAnswers] = useState([]);
-    const [userAnswer, setUserAnswer] = useState('');
+    const [quizCompleted, setQuizCompleted] = useState(false);
     const [totalQuestions, setTotalQuestions] = useState(0);
     const [correctAnswerCount, setCorrectAnswersCount] = useState(0);
     const [incorrectAnswersCount, setIncorrectAnswersCount] = useState(0);
+    
+    // Answer state
+    const [selectedAnswers, setSelectedAnswers] = useState([]);
+    const [userAnswer, setUserAnswer] = useState('');
     const [correctAnswers, setCorrectAnswers] = useState('');
-    const [quizCompleted, setQuizCompleted] = useState(false);
-    const [timer, setTimer] = useState(0);
-    const [timerId, setTimerId] = useState(null);
+    
+    // UI state
     const [feedback, setFeedback] = useState('');
     const [isFeedbackVisible, setIsFeedbackVisible] = useState(false);
     const [fadeOut, setFadeOut] = useState(false);
     const [showResults, setShowResults] = useState(false);
+    
+    // Timer state
+    const [timer, setTimer] = useState(0);
+    const [timerId, setTimerId] = useState(null);
+
+    // API functions
+    const fetchQuestion = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/next-question/?session_id=${sessionId}`);
+            console.log("Fetched Question Data:", response.data);
+
+            if (response.data.message === 'Quiz complete!') {
+                setFadeOut(true);
+                setTimeout(() => {
+                    setQuizCompleted(true);
+                    setQuestionData(null);
+                    setTimeout(() => {
+                        setShowResults(true);
+                    }, 100);
+                }, 500);
+            } else {
+                setQuestionData(response.data);
+                setSelectedAnswers([]);
+                setUserAnswer('');
+                setFeedback('');
+                setIsFeedbackVisible(false);
+            }
+        } catch (error) {
+            alert('Error fetching question: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
+    const fetchQuizStats = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/quiz-stats/?session_id=${sessionId}`);
+            setTotalQuestions(response.data.total_questions);
+            setCorrectAnswersCount(response.data.correct_answers);
+            setIncorrectAnswersCount(response.data.incorrect_answers);
+        } catch (error) {
+            console.error('Error fetching quiz stats:', error);
+        }
+    };
+
+    const handleSubmit = async () => {
+        let submissionData;
+        if (questionData.options.length > 1) {
+            submissionData = {
+                session_id: sessionId,
+                selected_answers: selectedAnswers,
+            };
+        } else {
+            submissionData = {
+                session_id: sessionId,
+                selected_answers: [userAnswer.trim()],
+            };
+        }
+    
+        try {
+            const response = await axios.post(`${API_URL}/submit-answer/`, submissionData);
+            const result = response.data.result;
+            setFeedback(result);
+            setIsFeedbackVisible(true);
+    
+            if (result === 'Correct') {
+                fetchQuestion();
+            } else {
+                setCorrectAnswers(response.data.correct_answers.join(', '));
+                await moveQuestionToBottom();
+            }
+    
+            fetchQuizStats();
+        } catch (error) {
+            alert('Error submitting answer: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
+    const moveQuestionToBottom = async () => {
+        try {
+            const questionIndex = questionData.question_index;
+            await axios.post(`${API_URL}/move-question-to-bottom/`, {
+                session_id: sessionId,
+                question_index: questionIndex,
+            });
+        } catch (error) {
+            alert('Error moving question to bottom: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
+    // Event handlers
+    const handleMultipleAnswerChange = (answerText) => {
+        setSelectedAnswers((prev) => {
+            if (prev.includes(answerText)) {
+                return prev.filter((answer) => answer !== answerText);
+            }
+            return [...prev, answerText];
+        });
+    };
+
+    const handleAnswerChange = (answerText) => {
+        setSelectedAnswers([answerText]);
+    };
+
+    const handleUserAnswerChange = (event) => {
+        setUserAnswer(event.target.value);
+    };
+
+    const handleContinueClick = () => {
+        setIsFeedbackVisible(false);
+        setFeedback('');
+        fetchQuestion();
+    };
+
+    const handleKeyPress = (event) => {
+        if (event.key === 'Enter') {
+            if (isFeedbackVisible) {
+                handleContinueClick();
+            } else {
+                const canSubmit = questionData.options.length > 1 
+                    ? selectedAnswers.length > 0 
+                    : userAnswer.trim() !== '';
+                
+                if (canSubmit) {
+                    handleSubmit();
+                }
+            }
+        }
+    };
+
+    // Utility functions
+    const formatTime = (totalSeconds) => {
+        const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+        const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+        const seconds = String(totalSeconds % 60).padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+    };
+
+    // Effects
+    useEffect(() => {
+        document.addEventListener('keypress', handleKeyPress);
+        return () => {
+            document.removeEventListener('keypress', handleKeyPress);
+        };
+    }, [isFeedbackVisible, selectedAnswers, userAnswer, questionData]);
+
+    useEffect(() => {
+        fetchQuestion();
+        fetchQuizStats();
+        const id = setInterval(() => setTimer((prev) => prev + 1), 1000);
+        setTimerId(id);
+
+        return () => {
+            clearInterval(id);
+        };
+    }, [sessionId]);
+
+    useEffect(() => {
+        if (quizCompleted) {
+            clearInterval(timerId);
+        }
+    }, [quizCompleted, timerId]);
 
     // Styles
     const pageStyle = {
@@ -118,160 +282,7 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
         transition: 'opacity 0.5s ease-out, transform 0.5s ease-out',
     };
 
-    // Keyboard event handler
-    const handleKeyPress = (event) => {
-        if (event.key === 'Enter') {
-            if (isFeedbackVisible) {
-                handleContinueClick();
-            } else {
-                const canSubmit = questionData.options.length > 1 
-                    ? selectedAnswers.length > 0 
-                    : userAnswer.trim() !== '';
-                
-                if (canSubmit) {
-                    handleSubmit();
-                }
-            }
-        }
-    };
-
-    // Event listeners
-    useEffect(() => {
-        document.addEventListener('keypress', handleKeyPress);
-        return () => {
-            document.removeEventListener('keypress', handleKeyPress);
-        };
-    }, [isFeedbackVisible, selectedAnswers, userAnswer, questionData]);
-
-    const fetchQuestion = async () => {
-        try {
-            const response = await axios.get(`${API_URL}/next-question/?session_id=${sessionId}`);
-            console.log("Fetched Question Data:", response.data);
-
-            if (response.data.message === 'Quiz complete!') {
-                setFadeOut(true);
-                setTimeout(() => {
-                    setQuizCompleted(true);
-                    setQuestionData(null);
-                    setTimeout(() => {
-                        setShowResults(true);
-                    }, 100);
-                }, 500);
-            } else {
-                setQuestionData(response.data);
-                setSelectedAnswers([]);
-                setUserAnswer('');
-                setFeedback('');
-                setIsFeedbackVisible(false);
-            }
-        } catch (error) {
-            alert('Error fetching question: ' + (error.response?.data?.error || error.message));
-        }
-    };
-
-    const fetchQuizStats = async () => {
-        try {
-            const response = await axios.get(`${API_URL}/quiz-stats/?session_id=${sessionId}`);
-            setTotalQuestions(response.data.total_questions);
-            setCorrectAnswersCount(response.data.correct_answers);
-            setIncorrectAnswersCount(response.data.incorrect_answers);
-        } catch (error) {
-            console.error('Error fetching quiz stats:', error);
-        }
-    };
-
-    const handleMultipleAnswerChange = (answerText) => {
-        setSelectedAnswers((prev) => {
-            if (prev.includes(answerText)) {
-                return prev.filter((answer) => answer !== answerText);
-            }
-            return [...prev, answerText];
-        });
-    };
-
-    const handleAnswerChange = (answerText) => {
-        setSelectedAnswers([answerText]);
-    };
-
-    const handleUserAnswerChange = (event) => {
-        setUserAnswer(event.target.value);
-    };
-
-    const handleContinueClick = () => {
-        setIsFeedbackVisible(false);
-        setFeedback('');
-        fetchQuestion();
-    };
-
-    const handleSubmit = async () => {
-        let submissionData;
-        if (questionData.options.length > 1) {
-            submissionData = {
-                session_id: sessionId,
-                selected_answers: selectedAnswers,
-            };
-        } else {
-            submissionData = {
-                session_id: sessionId,
-                selected_answers: [userAnswer.trim()],
-            };
-        }
-    
-        try {
-            const response = await axios.post(`${API_URL}/submit-answer/`, submissionData);
-            const result = response.data.result;
-            setFeedback(result);
-            setIsFeedbackVisible(true);
-    
-            if (result === 'Correct') {
-                fetchQuestion();
-            } else {
-                setCorrectAnswers(response.data.correct_answers.join(', '));
-                await moveQuestionToBottom();
-            }
-    
-            fetchQuizStats();
-        } catch (error) {
-            alert('Error submitting answer: ' + (error.response?.data?.error || error.message));
-        }
-    };
-
-    const moveQuestionToBottom = async () => {
-        try {
-            const questionIndex = questionData.question_index;
-            await axios.post(`${API_URL}/move-question-to-bottom/`, {
-                session_id: sessionId,
-                question_index: questionIndex,
-            });
-        } catch (error) {
-            alert('Error moving question to bottom: ' + (error.response?.data?.error || error.message));
-        }
-    };
-
-    useEffect(() => {
-        fetchQuestion();
-        fetchQuizStats();
-        const id = setInterval(() => setTimer((prev) => prev + 1), 1000);
-        setTimerId(id);
-
-        return () => {
-            clearInterval(id);
-        };
-    }, [sessionId]);
-
-    useEffect(() => {
-        if (quizCompleted) {
-            clearInterval(timerId);
-        }
-    }, [quizCompleted, timerId]);
-
-    const formatTime = (totalSeconds) => {
-        const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-        const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-        const seconds = String(totalSeconds % 60).padStart(2, '0');
-        return `${hours}:${minutes}:${seconds}`;
-    };
-
+    // Render quiz completion screen
     if (quizCompleted) {
         const totalAnswered = correctAnswerCount + (totalQuestions - correctAnswerCount);
         const percentageCorrect = totalAnswered > 0 ? (correctAnswerCount / (correctAnswerCount + incorrectAnswersCount)) * 100 : 0;
@@ -306,8 +317,10 @@ const Quiz = ({ sessionId, onGoHome, onRetry }) => {
         );
     }
 
+    // Loading state
     if (!questionData) return <div style={{ color: 'white', textAlign: 'center', paddingTop: '50px' }}>Loading...</div>;
 
+    // Quiz question rendering
     const hasMultipleOptions = questionData.options.length > 1;
     const hasMultipleCorrectAnswers = questionData.multiple_choice;
 

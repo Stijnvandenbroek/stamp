@@ -2,41 +2,25 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const Home = ({ setSessionId, setQuizStarted }) => {
-  const [files, setFiles] = useState([]); 
-  const [fileNames, setFileNames] = useState(''); 
-  const [settingsOpen, setSettingsOpen] = useState(true); 
-  const [setting1, setSetting1] = useState(false); 
-  const [setting2, setSetting2] = useState(false); 
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
+  // File state
+  const [files, setFiles] = useState([]);
+  const [fileNames, setFileNames] = useState('');
   const [isFileListVisible, setIsFileListVisible] = useState(false);
+
+  // Settings state
+  const [settingsOpen, setSettingsOpen] = useState(true);
+  const [setting1, setSetting1] = useState(false);
+  const [setting2, setSetting2] = useState(false);
   const [quizSettings, setQuizSettings] = useState({
     repeat_on_mistake: false,
     shuffle_answers: false,
     randomise_order: false,
     question_count_multiplier: 1,
   });
-  
-  // Backend API URL - use environment variable or default
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-  // Add useEffect to handle file list visibility
-  useEffect(() => {
-    if (fileNames) {
-      // Slight delay to ensure smooth transition
-      const timer = setTimeout(() => {
-        setIsFileListVisible(true);
-      }, 50);
-      return () => clearTimeout(timer);
-    } else {
-      setIsFileListVisible(false);
-    }
-  }, [fileNames]);
-
-  const handleFileChange = (e) => {
-    const selectedFiles = Array.from(e.target.files);
-    setFiles(selectedFiles);
-    setFileNames(selectedFiles.map(file => file.name).join(', '));
-  };
-
+  // API functions
   const handleFileUpload = async () => {
     if (files.length === 0) return alert("Please select files");
 
@@ -68,6 +52,13 @@ const Home = ({ setSessionId, setQuizStarted }) => {
     }
   };
 
+  // Event handlers
+  const handleFileChange = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    setFiles(selectedFiles);
+    setFileNames(selectedFiles.map(file => file.name).join(', '));
+  };
+
   const toggleSettings = () => {
     setSettingsOpen(!settingsOpen);
   };
@@ -84,7 +75,27 @@ const Home = ({ setSessionId, setQuizStarted }) => {
     setQuizSettings({ ...quizSettings, shuffle_answers: newSetting });
   };
 
-  // Main container style with flexbox to position elements side by side
+  const handleRandomizeOrderToggle = () => {
+    setQuizSettings({ ...quizSettings, randomise_order: !quizSettings.randomise_order });
+  };
+
+  const handleQuestionCountChange = (e) => {
+    setQuizSettings({ ...quizSettings, question_count_multiplier: parseInt(e.target.value) });
+  };
+
+  // Effects
+  useEffect(() => {
+    if (fileNames) {
+      const timer = setTimeout(() => {
+        setIsFileListVisible(true);
+      }, 50);
+      return () => clearTimeout(timer);
+    } else {
+      setIsFileListVisible(false);
+    }
+  }, [fileNames]);
+
+  // Styles
   const containerStyle = {
     display: 'flex',
     justifyContent: 'center',
@@ -97,16 +108,14 @@ const Home = ({ setSessionId, setQuizStarted }) => {
     boxSizing: 'border-box',
   };
 
-  // Left side container for quiz setup
   const leftContainerStyle = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: '30px', // Space between left and right containers
+    marginRight: '30px',
   };
 
-  // Right side container for file names with improved fade transition
   const rightContainerStyle = {
     backgroundColor: '#333',
     padding: '20px',
@@ -121,31 +130,6 @@ const Home = ({ setSessionId, setQuizStarted }) => {
     transition: 'opacity 0.5s ease, transform 0.5s ease',
     pointerEvents: isFileListVisible ? 'auto' : 'none',
     position: 'relative',
-  };
-
-  const fileNameHeaderStyle = {
-    fontWeight: 'bold', 
-    marginBottom: '10px',
-    position: 'sticky',
-    top: '0',
-    backgroundColor: '#333',
-    zIndex: 1,
-    paddingBottom: '10px',
-  };
-
-  const fileNamesScrollContainerStyle = {
-    overflowY: 'auto',
-    flexGrow: 1,
-  };
-
-  const fileNamesContainerStyle = {
-    backgroundColor: '#444',
-    borderRadius: '5px', 
-    padding: '10px',
-    marginTop: '10px',
-    fontSize: '0.9em',
-    color: 'white',
-    wordBreak: 'break-all',
   };
 
   const uploadContainerStyle = {
@@ -265,6 +249,31 @@ const Home = ({ setSessionId, setQuizStarted }) => {
     marginLeft: '5px',
   };
 
+  const fileNameHeaderStyle = {
+    fontWeight: 'bold', 
+    marginBottom: '10px',
+    position: 'sticky',
+    top: '0',
+    backgroundColor: '#333',
+    zIndex: 1,
+    paddingBottom: '10px',
+  };
+
+  const fileNamesScrollContainerStyle = {
+    overflowY: 'auto',
+    flexGrow: 1,
+  };
+
+  const fileNamesContainerStyle = {
+    backgroundColor: '#444',
+    borderRadius: '5px', 
+    padding: '10px',
+    marginTop: '10px',
+    fontSize: '0.9em',
+    color: 'white',
+    wordBreak: 'break-all',
+  };
+
   return (
     <div style={containerStyle}>
       <div style={leftContainerStyle}>
@@ -284,7 +293,6 @@ const Home = ({ setSessionId, setQuizStarted }) => {
           </button>
         </div>
 
-        {/* Show/Hide Settings Button */}
         <div
           onClick={toggleSettings}
           style={{ 
@@ -297,7 +305,6 @@ const Home = ({ setSessionId, setQuizStarted }) => {
           <span>{settingsOpen ? 'Hide Settings' : 'Show Settings'}</span>
         </div>
 
-        {/* Settings Section */}
         <div style={settingsContainerStyle}>
           <div style={toggleStyle}>
             <span style={settingTextStyle}>Repeat on Mistake</span>
@@ -314,7 +321,7 @@ const Home = ({ setSessionId, setQuizStarted }) => {
           <div style={toggleStyle}>
             <span style={settingTextStyle}>Randomize Order</span>
             <div
-              onClick={() => setQuizSettings({ ...quizSettings, randomise_order: !quizSettings.randomise_order })}
+              onClick={handleRandomizeOrderToggle}
               style={toggleSwitchStyle(quizSettings.randomise_order)}
             >
               <div
@@ -327,16 +334,13 @@ const Home = ({ setSessionId, setQuizStarted }) => {
             <input
               type="number"
               value={quizSettings.question_count_multiplier}
-              onChange={(e) =>
-                setQuizSettings({ ...quizSettings, question_count_multiplier: parseInt(e.target.value) })
-              }
+              onChange={handleQuestionCountChange}
               style={{ ...inputStyle, ...hideSpinnerStyle }}
             />
           </div>
         </div>
       </div>
 
-      {/* Right side container for selected files with improved fade transition */}
       {fileNames && (
         <div style={rightContainerStyle}>
           <div style={fileNameHeaderStyle}>Selected Files:</div>
