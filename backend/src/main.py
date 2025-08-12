@@ -19,21 +19,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Pydantic models
 class AnswerOption(BaseModel):
     text: str
     is_correct: bool
 
+
 class AnswerSubmission(BaseModel):
     session_id: str
     selected_answers: list[str]
+
 
 class MoveQuestionRequest(BaseModel):
     session_id: str
     question_index: int
 
+
 class SessionResetRequest(BaseModel):
     session_id: str
+
 
 class QuizSettings(BaseModel):
     repeat_on_mistake: bool
@@ -41,12 +46,15 @@ class QuizSettings(BaseModel):
     randomise_order: bool
     question_count_multiplier: int
 
+
 # Global storage
 quiz_sessions = {}
+
 
 # Utility functions
 def check_answers(selected_answers: list[str], correct_answers: list[str]) -> bool:
     return set(selected_answers) == set(correct_answers)
+
 
 def get_correct_answers(session_id: str) -> list[str]:
     session = quiz_sessions.get(session_id)
@@ -55,7 +63,10 @@ def get_correct_answers(session_id: str) -> list[str]:
 
     df = session["data"]
     question_index = session["current_question_index"]
-    return [ans["text"] for ans in df.loc[question_index]["answer"] if ans["is_correct"]]
+    return [
+        ans["text"] for ans in df.loc[question_index]["answer"] if ans["is_correct"]
+    ]
+
 
 def update_stats(session_id: str, is_correct: bool) -> None:
     session = quiz_sessions.get(session_id)
@@ -69,52 +80,222 @@ def update_stats(session_id: str, is_correct: bool) -> None:
     else:
         session["incorrect_count"] += 1
 
+
 def validate_session(session_id: str):
     session = quiz_sessions.get(session_id)
     if not session:
         raise HTTPException(status_code=400, detail="Invalid session ID.")
     return session
 
+
 # API endpoints
 @app.get("/", include_in_schema=False)  # Hide from OpenAPI docs
 async def root():
     return {"status": "ok"}
 
+
 @app.post("/upload-csv-with-settings/")
-async def upload_csv_with_settings(files: list[UploadFile] = File(...), settings: str = Form(...)):
+async def upload_csv_with_settings(
+    files: list[UploadFile] = File(...), settings: str = Form(...)
+):
     print("Received upload request:")
     print(f"Number of files: {len(files)}")
     print(f"File names: {[file.filename for file in files]}")
     print(f"Settings: {settings}")
-    
+
     try:
         quiz_settings = QuizSettings.parse_raw(settings)
         print(f"Parsed settings: {quiz_settings}")
     except json.JSONDecodeError as e:
         print(f"JSON decode error: {e}")
-        return JSONResponse({"error": f"Invalid JSON in settings: {str(e)}"}, status_code=400)
+        return JSONResponse(
+            {"error": f"Invalid JSON in settings: {str(e)}"}, status_code=400
+        )
 
     combined_df = pd.DataFrame()
     for file in files:
         try:
             print(f"Processing file: {file.filename}")
             contents = await file.read()
-            df = pd.read_csv(io.BytesIO(contents))
-            print(f"File columns: {df.columns.tolist()}")
 
-            if "question" not in df.columns or "answer" not in df.columns:
-                return JSONResponse({"error": f"CSV file {file.filename} must have 'question' and 'answer' columns."}, status_code=400)
+            # Try pandas first - it's generally better at handling quoted CSV
+            try:
+                df = pd.read_csv(
+                    io.BytesIO(contents),
+                    dtype=str,  # Keep everything as strings initially
+                    keep_default_na=False,  # Don't convert to NaN
+                )
+                print("Pandas parsing successful!")
+                print(f"File columns: {df.columns.tolist()}")
+                print(f"DataFrame shape: {df.shape}")
+
+                if len(df.columns) != 2:
+                    raise ValueError(f"Expected 2 columns, got {len(df.columns)}")
+
+                # Check if data looks correct (no fragments)
+                sample_answer = df.iloc[0].iloc[1] if len(df) > 0 else ""
+                if not sample_answer.strip().startswith(
+                    "["
+                ) or not sample_answer.strip().endswith("]"):
+                    print(
+                        "Data appears corrupted in pandas, falling back to manual parsing"
+                    )
+                    raise ValueError("Data corruption detected")
+
+            except Exception as pandas_error:
+                print(f"Pandas parsing failed: {pandas_error}")
+                print("Trying manual parsing...")
+
+                # Fallback to manual parsing with better regex handling
+                import re
+
+                contents_str = contents.decode("utf-8")
+                lines = contents_str.strip().split("\n")
+
+                # Parse header
+                header_line = lines[0]
+                header = [col.strip() for col in header_line.split(",")]
+
+                if len(header) != 2:
+                    raise ValueError(
+                        f"Header should have 2 columns, found {len(header)}"
+                    )
+
+                # Parse data with regex to handle quoted fields
+                data_rows = []
+                csv_pattern = r'"([^"]*(?:""[^"]*)*)","(\[.*\])"'
+
+                for i, line in enumerate(lines[1:], 1):
+                    match = re.match(csv_pattern, line.strip())
+                    if match:
+                        question = match.group(1).replace(
+                            '""', '"'
+                        )  # Handle escaped quotes
+                        answer = match.group(2)
+                        data_rows.append([question, answer])
+                    else:
+                        print(f"Warning: Could not parse line {i}: {line[:100]}...")
+
+                if not data_rows:
+                    raise ValueError("No valid data rows found with manual parsing")
+
+                # Create DataFrame
+                df = pd.DataFrame(data_rows, columns=header)
+                print("Manual parsing successful!")
+                print(f"File columns: {df.columns.tolist()}")
+                print(f"DataFrame shape: {df.shape}")
+
+            print(f"Sample question: {df.iloc[0].iloc[0] if len(df) > 0 else 'N/A'}")
+            print(
+                f"Sample answer preview: {df.iloc[0].iloc[1][:50] if len(df) > 0 else 'N/A'}..."
+            )
+
+            # Check for both capitalized and lowercase column names
+            columns = [col.lower() for col in df.columns]
+            if "question" not in columns or "answer" not in columns:
+                return JSONResponse(
+                    {
+                        "error": f"CSV file {file.filename} must have 'Question' and 'Answer' columns."
+                    },
+                    status_code=400,
+                )
+
+            # Normalize column names to lowercase
+            df.columns = df.columns.str.lower()
+
         except Exception as e:
             print(f"Error processing file {file.filename}: {str(e)}")
-            return JSONResponse({"error": f"Error processing {file.filename}: {str(e)}"}, status_code=400)
+            return JSONResponse(
+                {"error": f"Error processing {file.filename}: {str(e)}"},
+                status_code=400,
+            )
 
-        df["answer"] = df["answer"].apply(
-            lambda x: json.loads(x.replace("\\\\", "\\\\\\")) if isinstance(x, str) else x
-        )
+        # Parse JSON answers with better error handling
+        def safe_json_parse(x):
+            if not isinstance(x, str):
+                return x
+            if not x.strip():
+                return []
+            try:
+                # Clean up the JSON string
+                cleaned = x.strip()
+
+                # Handle escaped quotes from CSV parsing
+                if '\\"' in cleaned:
+                    cleaned = cleaned.replace('\\"', '"')
+
+                # Remove any extra quotes at the beginning and end
+                if cleaned.startswith('"') and cleaned.endswith('"'):
+                    cleaned = cleaned[1:-1]
+
+                # Try to parse the JSON
+                parsed = json.loads(cleaned)
+
+                # Ensure we have a list of dictionaries
+                if not isinstance(parsed, list):
+                    print(
+                        f"Warning: Expected list but got {type(parsed)} for value: {repr(x[:50])}"
+                    )
+                    return []
+
+                # Validate each item is a dictionary with required keys
+                valid_answers = []
+                for item in parsed:
+                    if (
+                        isinstance(item, dict)
+                        and "text" in item
+                        and "is_correct" in item
+                    ):
+                        valid_answers.append(item)
+                    else:
+                        print(
+                            f"Warning: Invalid answer format - missing 'text' or 'is_correct': {item}"
+                        )
+
+                if not valid_answers:
+                    print(f"Warning: No valid answer options found in: {repr(x[:50])}")
+                    return []
+
+                return valid_answers
+
+            except json.JSONDecodeError as e:
+                print(f"JSON parsing error for value: {repr(x[:100])}")
+                print(f"Error: {e}")
+                # Try one more time with additional cleaning
+                try:
+                    # More aggressive cleaning
+                    cleaned = x.strip()
+                    if cleaned.startswith('"') and cleaned.endswith('"'):
+                        cleaned = cleaned[1:-1]
+                    cleaned = cleaned.replace('\\"', '"')
+                    cleaned = cleaned.replace("\\\\", "\\")
+
+                    parsed = json.loads(cleaned)
+                    if isinstance(parsed, list):
+                        return parsed
+                except Exception:
+                    pass
+                return []
+
+        print("Parsing JSON answers...")
+        df["answer"] = df["answer"].apply(safe_json_parse)
+
+        # Filter out rows where JSON parsing failed (empty lists)
+        original_count = len(df)
+        df = df[df["answer"].apply(lambda x: len(x) > 0)]
+        if len(df) < original_count:
+            print(
+                f"Warning: Filtered out {original_count - len(df)} rows due to JSON parsing errors"
+            )
+
+        # Validate that we have valid answer structures
+        print(f"Sample parsed answer: {df.iloc[0]['answer'] if len(df) > 0 else 'N/A'}")
 
         combined_df = pd.concat([combined_df, df], ignore_index=True)
 
-    combined_df = pd.concat([combined_df] * quiz_settings.question_count_multiplier, ignore_index=True)
+    combined_df = pd.concat(
+        [combined_df] * quiz_settings.question_count_multiplier, ignore_index=True
+    )
 
     if quiz_settings.randomise_order:
         combined_df = combined_df.sample(frac=1).reset_index(drop=True)
@@ -132,6 +313,7 @@ async def upload_csv_with_settings(files: list[UploadFile] = File(...), settings
 
     return {"session_id": session_id, "message": "Quiz session started!"}
 
+
 @app.get("/quiz-settings/")
 async def get_quiz_settings(session_id: str):
     session = quiz_sessions.get(session_id)
@@ -139,6 +321,7 @@ async def get_quiz_settings(session_id: str):
         return JSONResponse({"error": "Invalid session ID."}, status_code=400)
 
     return session["settings"]
+
 
 @app.get("/next-question/")
 async def get_next_question(session_id: str):
@@ -156,7 +339,9 @@ async def get_next_question(session_id: str):
     possible_answers = [ans["text"] for ans in df.loc[question_index]["answer"]]
     if session["settings"]["shuffle_answers"]:
         random.shuffle(possible_answers)
-    multiple_choice = len([ans for ans in df.loc[question_index]["answer"] if ans["is_correct"]]) > 1
+    multiple_choice = (
+        len([ans for ans in df.loc[question_index]["answer"] if ans["is_correct"]]) > 1
+    )
 
     return {
         "question": question,
@@ -164,6 +349,7 @@ async def get_next_question(session_id: str):
         "question_index": question_index,
         "multiple_choice": multiple_choice,
     }
+
 
 @app.post("/submit-answer/")
 async def submit_answer(submission: AnswerSubmission):
@@ -173,7 +359,11 @@ async def submit_answer(submission: AnswerSubmission):
     correct_answers = get_correct_answers(submission.session_id)
     is_correct = check_answers(submission.selected_answers, correct_answers)
     update_stats(submission.session_id, is_correct)
-    return {"result": "Correct" if is_correct else "Incorrect", "correct_answers": correct_answers}
+    return {
+        "result": "Correct" if is_correct else "Incorrect",
+        "correct_answers": correct_answers,
+    }
+
 
 @app.get("/quiz-stats/")
 async def get_quiz_stats(session_id: str):
@@ -190,6 +380,7 @@ async def get_quiz_stats(session_id: str):
         "correct_answers": correct_count,
         "incorrect_answers": incorrect_count,
     }
+
 
 @app.post("/move-question-to-bottom/")
 async def move_question_to_bottom(request: MoveQuestionRequest):
@@ -210,6 +401,7 @@ async def move_question_to_bottom(request: MoveQuestionRequest):
     session["data"] = df
     return {"message": "Question moved to the bottom successfully."}
 
+
 @app.post("/reset-session/")
 async def reset_session(session_reset_request: SessionResetRequest):
     session = quiz_sessions.get(session_reset_request.session_id)
@@ -222,6 +414,7 @@ async def reset_session(session_reset_request: SessionResetRequest):
     session["data"] = session["original_data"].copy()
 
     return {"message": "Session reset successfully."}
+
 
 # Application startup
 if __name__ == "__main__":
