@@ -26,7 +26,6 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - REACT_APP_API_URL=http://localhost:8000
       - CHOKIDAR_USEPOLLING=true
       - WDS_SOCKET_PORT=0
       - CI=true

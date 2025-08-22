@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Home from './components/Home';
 import Quiz from './components/Quiz';
 import axios from 'axios';
+import getApiUrl from './utils/apiConfig';
 
 function App() {
     const [sessionId, setSessionId] = useState('');
@@ -93,7 +94,8 @@ function App() {
 
     const handleRetryQuiz = async () => {
         try {
-            await axios.post('http://backend:8000/reset-session/', {
+            const apiUrl = getApiUrl();
+            await axios.post(`${apiUrl}/reset-session/`, {
                 session_id: sessionId,
             });
             setIsTransitioning(true);

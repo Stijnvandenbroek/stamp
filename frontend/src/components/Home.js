@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import getApiUrl from '../utils/apiConfig';
 
 const Home = ({ setSessionId, setQuizStarted }) => {
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+  const API_URL = getApiUrl();
 
   // File state
   const [files, setFiles] = useState([]);
@@ -31,7 +32,9 @@ const Home = ({ setSessionId, setQuizStarted }) => {
 
     formData.append('settings', JSON.stringify(quizSettings));
     
-    console.log('API URL:', API_URL);
+    console.log('Frontend URL:', window.location.href);
+    console.log('Frontend Host:', window.location.hostname);
+    console.log('Detected API URL:', API_URL);
     console.log('Uploading files:', files.map(f => f.name));
     console.log('Quiz settings:', quizSettings);
 

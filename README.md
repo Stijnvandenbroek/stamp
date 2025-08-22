@@ -171,3 +171,9 @@ docker exec -it stamp-frontend /bin/sh
 curl -v http://backend:8000/
 exit
 ```
+
+6. Use the network testing script:
+```bash
+./scripts/test-network.sh
+```
+This script will automatically detect your LAN IP and test both local and network connectivity.

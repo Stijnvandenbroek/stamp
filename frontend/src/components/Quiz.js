@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import getApiUrl from '../utils/apiConfig';
 
 const Quiz = ({ sessionId, onGoHome, onRetry }) => {
-    const API_URL = process.env.REACT_APP_API_URL;
+    const API_URL = getApiUrl();
     
     // Quiz state
     const [questionData, setQuestionData] = useState(null);
