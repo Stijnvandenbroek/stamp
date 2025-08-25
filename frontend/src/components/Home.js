@@ -47,7 +47,6 @@ const Home = ({ setSessionId, setQuizStarted }) => {
       });
       console.log('Response received:', response.data);
       setSessionId(response.data.session_id);
-      setQuizStarted(true);
     } catch (error) {
       console.error('Upload error:', error);
       console.error('Response data:', error.response?.data);
